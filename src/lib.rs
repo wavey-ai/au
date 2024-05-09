@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use chrono::Duration;
 use h264::iterate_annex_b;
 use serde::{Deserialize, Serialize};
@@ -104,5 +104,32 @@ impl AuPayload {
                 nalus
             })
             .collect()
+    }
+
+    pub fn lp_to_nal_start_code(&self) -> Bytes {
+        let mut nal_units = BytesMut::new();
+        let mut offset = 0;
+
+        if let Some(data) = &self.data {
+            while offset < data.len() {
+                if offset + 4 > data.len() {
+                    break;
+                }
+
+                let nalu_length =
+                    u32::from_be_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+                offset += 4;
+
+                if offset + nalu_length > data.len() {
+                    break;
+                }
+
+                nal_units.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]);
+                nal_units.extend_from_slice(&data[offset..offset + nalu_length]);
+                offset += nalu_length;
+            }
+        }
+
+        nal_units.freeze()
     }
 }
